@@ -1,8 +1,23 @@
+# Streamlit
 streamlit==1.29.0
+
+# PDF processing
 PyMuPDF==1.22.5
+
+# Progress bars
 tqdm==4.66.1
+
+# Sentence embeddings
 sentence-transformers==2.2.2
+
+# Vector search
 faiss-cpu==1.7.4
+
+# OpenAI client
+openai==1.28.0
+
+# Markdown / Rich rendering (Streamlit compatibility)
 rich==14.3.1
 markdown-it-py==4.0.0
 mdurl==0.1.2
+pygments==2.19.2
