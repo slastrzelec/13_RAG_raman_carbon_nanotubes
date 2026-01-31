@@ -84,31 +84,48 @@ def extract_top_keywords(chunks, top_n=20):
 
 # 🔹 Streamlit UI
 st.set_page_config(page_title="RAG Raman Nanotubes", page_icon="🧪", layout="wide")
-st.title("🧪 RAG – Raman Nanotubes QA")
+
+# 🔹 CUSTOM HEADER
+col1, col2 = st.columns([1, 4])
+with col1:
+    st.markdown("# 🧪")
+with col2:
+    st.markdown("# RAG – Raman Nanotubes QA")
+
+st.markdown("### 🔬 Semantic search engine for carbon nanotube research")
+st.divider()
 
 # 🔹 Sidebar (Portfolio info + PDF selection + live keywords)
-st.sidebar.header("About this project")
+st.sidebar.header("📚 About this project")
 st.sidebar.markdown("""
-This demo showcases **RAG (Retrieval-Augmented Generation)** on scientific PDFs about **Raman spectroscopy of carbon nanotubes**.  
-- Built with **Python, FAISS, Streamlit, OpenAI**  
-- Allows selection of PDFs to focus retrieval  
-- Highlights key terms in retrieved text
+**RAG (Retrieval-Augmented Generation)** on scientific PDFs about Raman spectroscopy of carbon nanotubes.
+
+**Tech Stack:**
+- Python, FAISS, Streamlit, OpenAI
+- Semantic search on 27 scientific papers
+- Real-time keyword extraction
 """)
+
 all_files = list({chunk["filename"] for chunk in chunks_meta})
-selected_files = st.sidebar.multiselect("Select PDFs for retrieval:", all_files, default=all_files[:5])
+selected_files = st.sidebar.multiselect("📄 Select PDFs for retrieval:", all_files, default=all_files[:5])
 
 # 🔹 Extract live keywords based on selected PDFs
 filtered_chunks = [c for c in chunks_meta if c["filename"] in selected_files]
 top_keywords = extract_top_keywords(filtered_chunks, top_n=20)
-highlight_keywords_selected = st.sidebar.multiselect("Highlight keywords:", top_keywords, default=top_keywords[:5])
+highlight_keywords_selected = st.sidebar.multiselect("🔑 Highlight keywords:", top_keywords, default=top_keywords[:5])
+
+# 🔹 Stats
+st.sidebar.divider()
+st.sidebar.metric("PDFs Selected", len(selected_files))
+st.sidebar.metric("Chunks Available", len(filtered_chunks))
 
 # 🔹 Input
-query = st.text_input("Your question:")
-top_k = st.slider("Number of fragments to retrieve (top_k):", 1, 10, 5)
+query = st.text_input("❓ Ask your question:", placeholder="e.g., What is RBM in carbon nanotubes?")
+top_k = st.slider("📊 Fragments to retrieve:", 1, 10, 5)
 
 # 🔹 Ask button
-if st.button("Ask question") and query:
-    with st.spinner("Searching and generating answer..."):
+if st.button("🔍 Ask question", type="primary") and query:
+    with st.spinner("⏳ Searching and generating answer..."):
         answer, retrieved_chunks = rag_query(query, top_k, selected_files)
     st.success("✅ Answer generated!")
 
@@ -122,6 +139,7 @@ if st.button("Ask question") and query:
     with col2:
         st.markdown("### 📄 Top Retrieved Fragments")
         for chunk in retrieved_chunks:
-            st.markdown(f"**Rank {chunk['rank']} | File:** {chunk['filename']} | Distance: {chunk['distance']:.3f}")
-            st.write(highlight_keywords(chunk['text'][:500]+"...", highlight_keywords_selected))
-            st.markdown("---")
+            with st.container(border=True):
+                st.markdown(f"**#{chunk['rank']}** • `{chunk['filename']}`")
+                st.caption(f"Relevance: {1-chunk['distance']:.1%}")
+                st.markdown(highlight_keywords(chunk['text'][:500]+"...", highlight_keywords_selected))
