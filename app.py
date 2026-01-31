@@ -120,11 +120,12 @@ st.sidebar.metric("PDFs Selected", len(selected_files))
 st.sidebar.metric("Chunks Available", len(filtered_chunks))
 
 # 🔹 Input
-query = st.text_input("❓ Ask your question:", placeholder="e.g., What is RBM in carbon nanotubes?")
+DEFAULT_QUERY = "What is the D/G ratio in Raman spectroscopy and carbon nanotubes?"
+query = st.text_input("❓ Ask your question:", value=DEFAULT_QUERY, placeholder="e.g., What is RBM in carbon nanotubes?")
 top_k = st.slider("📊 Fragments to retrieve:", 1, 10, 5)
 
-# 🔹 Ask button
-if st.button("🔍 Ask question", type="primary") and query:
+# 🔹 Auto-run on load or button click
+if st.button("🔍 Ask question", type="primary") or query == DEFAULT_QUERY:
     with st.spinner("⏳ Searching and generating answer..."):
         answer, retrieved_chunks = rag_query(query, top_k, selected_files)
     st.success("✅ Answer generated!")
