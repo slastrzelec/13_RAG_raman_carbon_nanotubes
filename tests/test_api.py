@@ -1,0 +1,96 @@
+"""
+Unit tests for api.py.
+
+These tests mock rag_query() and the Retriever, so they run fast, free, and
+without a real OpenAI API key or a built FAISS index — they test the API layer
+itself (validation, status codes, response shape), not RAG quality (that's
+covered separately by src/evaluation.py).
+
+Run with: pytest tests/test_api.py -v
+"""
+from unittest.mock import patch, MagicMock
+
+import pytest
+from fastapi.testclient import TestClient
+
+
+@pytest.fixture
+def client():
+    """
+    Patches Retriever() before importing api.py, so the module-level
+    `retriever = Retriever()` call in api.py doesn't try to load a real
+    embedding model or FAISS index from disk.
+    """
+    with patch("src.retrieval.Retriever") as MockRetriever:
+        MockRetriever.return_value = MagicMock(chunks_meta=[
+            {"filename": "paper_a.pdf", "text": "chunk 1"},
+            {"filename": "paper_a.pdf", "text": "chunk 2"},
+            {"filename": "paper_b.pdf", "text": "chunk 3"},
+        ])
+        import api
+        yield TestClient(api.app)
+
+
+class TestHealthEndpoint:
+    def test_health_check_returns_ok(self, client):
+        response = client.get("/health")
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
+
+
+class TestDocumentsEndpoint:
+    def test_lists_unique_filenames(self, client):
+        response = client.get("/documents")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 2  # paper_a.pdf and paper_b.pdf, deduplicated
+        assert set(data["documents"]) == {"paper_a.pdf", "paper_b.pdf"}
+
+
+class TestQueryEndpoint:
+    def test_valid_question_returns_answer_and_sources(self, client):
+        fake_answer = "The D/G ratio indicates defect density."
+        fake_sources = [{"rank": 1, "filename": "paper_a.pdf", "text": "...", "score": 0.9}]
+
+        with patch("api.rag_query", return_value=(fake_answer, fake_sources)):
+            response = client.post("/query", json={"question": "What is D/G ratio?", "top_k": 5})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["answer"] == fake_answer
+        assert data["sources"] == fake_sources
+
+    def test_empty_question_is_rejected(self, client):
+        response = client.post("/query", json={"question": "", "top_k": 5})
+        assert response.status_code == 422
+
+    def test_whitespace_only_question_is_rejected(self, client):
+        response = client.post("/query", json={"question": "   ", "top_k": 5})
+        assert response.status_code == 422
+
+    def test_top_k_above_limit_is_rejected(self, client):
+        response = client.post("/query", json={"question": "valid question", "top_k": 50})
+        assert response.status_code == 422
+
+    def test_top_k_below_minimum_is_rejected(self, client):
+        response = client.post("/query", json={"question": "valid question", "top_k": 0})
+        assert response.status_code == 422
+
+    def test_missing_question_field_is_rejected(self, client):
+        response = client.post("/query", json={"top_k": 5})
+        assert response.status_code == 422
+
+    def test_default_top_k_is_used_when_omitted(self, client):
+        with patch("api.rag_query", return_value=("answer", [])) as mock_rag_query:
+            client.post("/query", json={"question": "valid question"})
+
+        # confirm rag_query was called with the configured default, not some arbitrary value
+        _, kwargs = mock_rag_query.call_args
+        assert kwargs["top_k"] == 5
+
+    def test_rag_pipeline_failure_returns_502(self, client):
+        with patch("api.rag_query", side_effect=RuntimeError("OpenAI timeout")):
+            response = client.post("/query", json={"question": "valid question", "top_k": 5})
+
+        assert response.status_code == 502
+        assert "OpenAI timeout" in response.json()["detail"]
