@@ -15,7 +15,6 @@ import os
 import re
 import json
 import hashlib
-import logging
 
 import fitz  # pymupdf
 import numpy as np
@@ -25,15 +24,15 @@ from tqdm import tqdm
 # testy logiki tekstowej (chunking, dedup) nie powinny wymagać ciężkich zależności ML
 
 from src import config
+from src.logger import get_logger
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def extract_text_from_pdfs(raw_dir: str) -> list[dict]:
     """Wyciąga tekst ze wszystkich PDF-ów w raw_dir."""
     pdf_files = [f for f in os.listdir(raw_dir) if f.lower().endswith(".pdf")]
-    logger.info(f"Znaleziono {len(pdf_files)} plików PDF w {raw_dir}")
+    logger.info(f"Znaleziono {len(pdf_files)} plików PDF w {raw_dir}", extra={"num_pdfs": len(pdf_files), "raw_dir": raw_dir})
 
     documents = []
     for pdf_file in tqdm(pdf_files, desc="Ekstrakcja tekstu z PDF"):
@@ -74,13 +73,19 @@ def deduplicate_documents(documents: list[dict]) -> list[dict]:
         unique_docs.append(doc)
 
     if duplicates_found:
-        logger.warning(f"Wykryto {len(duplicates_found)} duplikatów treści:")
+        logger.warning(
+            f"Wykryto {len(duplicates_found)} duplikatów treści",
+            extra={"num_duplicates": len(duplicates_found), "duplicates": duplicates_found},
+        )
         for dup, original in duplicates_found:
-            logger.warning(f"  '{dup}' jest duplikatem '{original}' — pominięto")
+            logger.warning(f"  '{dup}' jest duplikatem '{original}' — pominięto", extra={"duplicate_file": dup, "original_file": original})
     else:
         logger.info("Brak duplikatów treści.")
 
-    logger.info(f"Dokumenty po deduplikacji: {len(unique_docs)} (z {len(documents)})")
+    logger.info(
+        f"Dokumenty po deduplikacji: {len(unique_docs)} (z {len(documents)})",
+        extra={"num_unique": len(unique_docs), "num_total": len(documents)},
+    )
     return unique_docs
 
 
@@ -164,7 +169,10 @@ def build_chunks(documents: list[dict]) -> list[dict]:
             overlap_tokens=config.CHUNK_OVERLAP_TOKENS,
         )
         all_chunks.extend(doc_chunks)
-    logger.info(f"Utworzono {len(all_chunks)} chunków (docelowo ~{config.CHUNK_SIZE_TOKENS} słów każdy)")
+    logger.info(
+        f"Utworzono {len(all_chunks)} chunków (docelowo ~{config.CHUNK_SIZE_TOKENS} słów każdy)",
+        extra={"num_chunks": len(all_chunks), "target_chunk_size_tokens": config.CHUNK_SIZE_TOKENS},
+    )
     return all_chunks
 
 
@@ -188,7 +196,10 @@ def build_faiss_index(chunks: list[dict]) -> tuple[faiss.Index, np.ndarray]:
 
     index = faiss.IndexFlatIP(config.EMBEDDING_DIM)
     index.add(embeddings)
-    logger.info(f"Zbudowano IndexFlatIP z {index.ntotal} wektorami (znormalizowane, cosine similarity)")
+    logger.info(
+        f"Zbudowano IndexFlatIP z {index.ntotal} wektorami (znormalizowane, cosine similarity)",
+        extra={"num_vectors": index.ntotal, "embedding_dim": config.EMBEDDING_DIM},
+    )
 
     return index, embeddings
 
@@ -206,8 +217,8 @@ def run_ingestion_pipeline():
     with open(config.CHUNKS_META_PATH, "w", encoding="utf-8") as f:
         json.dump(chunks, f, ensure_ascii=False, indent=2)
 
-    logger.info(f"Gotowe. Indeks: {config.INDEX_PATH}")
-    logger.info(f"Metadata chunków: {config.CHUNKS_META_PATH}")
+    logger.info(f"Gotowe. Indeks: {config.INDEX_PATH}", extra={"index_path": config.INDEX_PATH})
+    logger.info(f"Metadata chunków: {config.CHUNKS_META_PATH}", extra={"chunks_meta_path": config.CHUNKS_META_PATH})
 
 
 if __name__ == "__main__":

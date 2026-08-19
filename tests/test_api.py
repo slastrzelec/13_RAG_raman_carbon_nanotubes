@@ -94,3 +94,36 @@ class TestQueryEndpoint:
 
         assert response.status_code == 502
         assert "OpenAI timeout" in response.json()["detail"]
+
+
+class TestRequestLoggingMiddleware:
+    def test_middleware_logs_request_details(self, client, caplog):
+        """The logging middleware should fire for every request, regardless of endpoint,
+        and record method, path, and status code."""
+        import logging
+
+        with caplog.at_level(logging.INFO, logger="api"):
+            response = client.get("/health")
+
+        assert response.status_code == 200
+        log_records = [r for r in caplog.records if r.name == "api" and r.message == "Request handled"]
+        assert len(log_records) == 1
+
+        record = log_records[0]
+        assert record.method == "GET"
+        assert record.path == "/health"
+        assert record.status_code == 200
+        assert record.duration_ms >= 0
+
+    def test_middleware_records_error_status_codes(self, client, caplog):
+        """A validation failure (422) should still be picked up by the middleware,
+        since it wraps every request regardless of the outcome."""
+        import logging
+
+        with caplog.at_level(logging.INFO, logger="api"):
+            response = client.post("/query", json={"question": "", "top_k": 5})
+
+        assert response.status_code == 422
+        log_records = [r for r in caplog.records if r.name == "api" and r.message == "Request handled"]
+        assert len(log_records) == 1
+        assert log_records[0].status_code == 422
