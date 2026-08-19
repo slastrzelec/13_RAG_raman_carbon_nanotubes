@@ -1,68 +1,21 @@
 import streamlit as st
 from dotenv import load_dotenv
-import os
-from openai import OpenAI
-import json
-import faiss
+
+load_dotenv()  # MUSI być przed importem src.generation, bo tam klient OpenAI tworzy się przy imporcie
+
 import numpy as np
-from sentence_transformers import SentenceTransformer
-import re
 from sklearn.feature_extraction.text import TfidfVectorizer
+import re
 
-# 🔹 Load .env
-load_dotenv()
-if "OPENAI_API_KEY" not in os.environ:
-    st.error("OPENAI_API_KEY not found in environment variables!")
-client = OpenAI()
+from src.retrieval import Retriever
+from src.generation import rag_query
 
-# 🔹 Paths
-PROCESSED_DIR = "data/processed"
-index_path = os.path.join(PROCESSED_DIR, "faiss_index.index")
-chunks_meta_path = os.path.join(PROCESSED_DIR, "chunks_meta.json")
+# 🔹 Cache Retrievera - ciężkie zasoby (model, indeks) ładowane raz na sesję
+@st.cache_resource
+def load_retriever():
+    return Retriever()
 
-# 🔹 Load FAISS index and metadata
-index = faiss.read_index(index_path)
-with open(chunks_meta_path, "r", encoding="utf-8") as f:
-    chunks_meta = json.load(f)
-
-# 🔹 Embedding model
-MODEL_NAME = "all-MiniLM-L6-v2"
-embed_model = SentenceTransformer(MODEL_NAME)
-
-# 🔹 Retrieval function with source filtering
-def retrieve(query, top_k=5, selected_files=None):
-    query_emb = embed_model.encode([query]).astype("float32")
-    distances, indices = index.search(query_emb, top_k*2)
-    results = []
-    for i, idx in enumerate(indices[0]):
-        chunk = chunks_meta[idx]
-        if selected_files and chunk["filename"] not in selected_files:
-            continue
-        results.append({
-            "rank": len(results)+1,
-            "filename": chunk["filename"],
-            "text": chunk["text"],
-            "distance": float(distances[0][i])
-        })
-        if len(results) >= top_k:
-            break
-    return results
-
-# 🔹 RAG function
-def rag_query(query, top_k=5, selected_files=None):
-    retrieved_chunks = retrieve(query, top_k, selected_files)
-    context = "\n\n".join([c["text"] for c in retrieved_chunks])
-    prompt = f"You have access to the following scientific publication fragments:\n\n{context}\n\nPlease provide a detailed answer to the question: {query}"
-    
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are an expert in Raman spectroscopy and carbon nanotube nanostructures."},
-            {"role": "user", "content": prompt}
-        ],
-        max_tokens=500
-    )
-    return response.choices[0].message.content, retrieved_chunks
+retriever = load_retriever()
 
 # 🔹 Highlight keywords
 def highlight_keywords(text, keywords):
@@ -85,7 +38,6 @@ def extract_top_keywords(chunks, top_n=20):
 # 🔹 Streamlit UI
 st.set_page_config(page_title="RAG Raman Nanotubes", page_icon="🧪", layout="wide")
 
-# 🔹 CUSTOM HEADER
 col1, col2 = st.columns([1, 4])
 with col1:
     st.markdown("# 🧪")
@@ -93,45 +45,51 @@ with col2:
     st.markdown("# RAG – Raman Nanotubes QA")
 
 st.markdown("### 🔬 Semantic search engine for carbon nanotube research")
+st.caption("v2 — hybrid search (dense + BM25), normalized cosine similarity")
 st.divider()
 
-# 🔹 Sidebar (Portfolio info + PDF selection + live keywords)
+# 🔹 Sidebar
 st.sidebar.header("📚 About this project")
 st.sidebar.markdown("""
 **RAG (Retrieval-Augmented Generation)** on scientific PDFs about Raman spectroscopy of carbon nanotubes.
 
 **Tech Stack:**
-- Python, FAISS, Streamlit, OpenAI
-- Semantic search on 27 scientific papers
-- Real-time keyword extraction
+- Python, FAISS (IndexFlatIP, cosine similarity), Streamlit, OpenAI
+- Hybrid search: dense embeddings + BM25
+- Sentence-based chunking with deduplication
 """)
 
-all_files = list({chunk["filename"] for chunk in chunks_meta})
+all_files = sorted({chunk["filename"] for chunk in retriever.chunks_meta})
 selected_files = st.sidebar.multiselect("📄 Select PDFs for retrieval:", all_files, default=all_files[:5])
 
-# 🔹 Extract live keywords based on selected PDFs
-filtered_chunks = [c for c in chunks_meta if c["filename"] in selected_files]
-top_keywords = extract_top_keywords(filtered_chunks, top_n=20)
+use_hybrid = st.sidebar.toggle("🔀 Use hybrid search (dense + BM25)", value=True)
+
+# 🔹 Live keywords based on selected PDFs
+filtered_chunks = [c for c in retriever.chunks_meta if c["filename"] in selected_files]
+top_keywords = extract_top_keywords(filtered_chunks, top_n=20) if filtered_chunks else []
 highlight_keywords_selected = st.sidebar.multiselect("🔑 Highlight keywords:", top_keywords, default=top_keywords[:5])
 
-# 🔹 Stats
 st.sidebar.divider()
 st.sidebar.metric("PDFs Selected", len(selected_files))
 st.sidebar.metric("Chunks Available", len(filtered_chunks))
 
 # 🔹 Input
 DEFAULT_QUERY = "What is the D/G ratio in Raman spectroscopy and carbon nanotubes?"
-query = st.text_input("❓ Ask your question:", value=DEFAULT_QUERY, placeholder="e.g., What is RBM in carbon nanotubes?")
+query = st.text_input(
+    "❓ Ask your question (English recommended — source documents are in English):",
+    value=DEFAULT_QUERY,
+    placeholder="e.g., What is RBM in carbon nanotubes?",
+)
 top_k = st.slider("📊 Fragments to retrieve:", 1, 10, 5)
 
-# 🔹 Auto-run on load or button click
 if st.button("🔍 Ask question", type="primary") or query == DEFAULT_QUERY:
     with st.spinner("⏳ Searching and generating answer..."):
-        answer, retrieved_chunks = rag_query(query, top_k, selected_files)
+        answer, retrieved_chunks = rag_query(
+            retriever, query, top_k=top_k, selected_files=selected_files
+        )
     st.success("✅ Answer generated!")
 
-    # Layout: two columns
-    col1, col2 = st.columns([1,2])
+    col1, col2 = st.columns([1, 2])
 
     with col1:
         st.markdown("### 💬 Answer")
@@ -142,5 +100,5 @@ if st.button("🔍 Ask question", type="primary") or query == DEFAULT_QUERY:
         for chunk in retrieved_chunks:
             with st.container(border=True):
                 st.markdown(f"**#{chunk['rank']}** • `{chunk['filename']}`")
-                st.caption(f"Relevance: {1-chunk['distance']:.1%}")
-                st.markdown(highlight_keywords(chunk['text'][:500]+"...", highlight_keywords_selected))
+                st.caption(f"Relevance score: {chunk['score']:.3f}")
+                st.markdown(highlight_keywords(chunk['text'][:500] + "...", highlight_keywords_selected))

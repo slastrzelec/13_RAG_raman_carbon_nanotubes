@@ -7,7 +7,19 @@ from openai import OpenAI
 from src import config
 from src.retrieval import Retriever
 
-client = OpenAI()
+_client = None
+
+
+def get_client() -> OpenAI:
+    """
+    Leniwa inicjalizacja klienta OpenAI — tworzony dopiero przy pierwszym użyciu,
+    nie przy imporcie modułu. Dzięki temu load_dotenv() zdąży wczytać OPENAI_API_KEY
+    niezależnie od kolejności importów w kodzie wywołującym (app.py, api.py, testy).
+    """
+    global _client
+    if _client is None:
+        _client = OpenAI()
+    return _client
 
 
 def build_prompt(query: str, retrieved_chunks: list[dict]) -> str:
@@ -20,7 +32,7 @@ def build_prompt(query: str, retrieved_chunks: list[dict]) -> str:
 
 def generate_answer(query: str, retrieved_chunks: list[dict]) -> str:
     prompt = build_prompt(query, retrieved_chunks)
-    response = client.chat.completions.create(
+    response = get_client().chat.completions.create(
         model=config.LLM_MODEL,
         messages=[
             {"role": "system", "content": config.LLM_SYSTEM_PROMPT},
