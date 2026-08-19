@@ -38,6 +38,87 @@ def extract_top_keywords(chunks, top_n=20):
 # 🔹 Streamlit UI
 st.set_page_config(page_title="RAG Raman Nanotubes", page_icon="🧪", layout="wide")
 
+# 🔹 Custom CSS — naukowy/techniczny styl: typografia, spacing, karty
+st.markdown("""
+<style>
+    /* Typografia nagłówków — mono, wyraźny letter-spacing jak w dokumentacji technicznej */
+    h1, h2, h3 {
+        font-family: 'JetBrains Mono', 'Courier New', monospace !important;
+        letter-spacing: -0.02em;
+    }
+    h1 {
+        font-weight: 700 !important;
+        font-size: 2.1rem !important;
+        color: #F2F2F2 !important;
+    }
+
+    /* Caption pod tytułem — subtelny, techniczny */
+    [data-testid="stCaptionContainer"] {
+        font-family: monospace;
+        color: #E8482C !important;
+        opacity: 0.85;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        font-size: 0.75rem !important;
+    }
+
+    /* Więcej oddechu między sekcjami */
+    .block-container {
+        padding-top: 2.5rem;
+        padding-bottom: 3rem;
+    }
+
+    /* Karty z fragmentami — subtelna ramka, mono dla nazw plików */
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        border-radius: 6px !important;
+        border: 1px solid #2A2F3A !important;
+        transition: border-color 0.15s ease;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"]:hover {
+        border-color: #E8482C !important;
+    }
+
+    /* Sidebar — nieco ciemniejsze tło, wyraźniejsze separatory */
+    section[data-testid="stSidebar"] {
+        border-right: 1px solid #2A2F3A;
+    }
+    section[data-testid="stSidebar"] h1,
+    section[data-testid="stSidebar"] h2,
+    section[data-testid="stSidebar"] h3 {
+        font-size: 0.95rem !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #9AA0AC !important;
+    }
+
+    /* Metric — mono, akcent czerwony na liczbie */
+    [data-testid="stMetricValue"] {
+        font-family: monospace !important;
+        color: #E8482C !important;
+    }
+
+    /* Przyciski — ostrzejsze rogi, mono label */
+    .stButton > button {
+        font-family: monospace !important;
+        border-radius: 4px !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.02em;
+    }
+
+    /* Pole tekstowe zapytania — mono */
+    .stTextInput input {
+        font-family: monospace !important;
+    }
+
+    /* Relevance score i nazwy plików w kartach fragmentów — mono */
+    [data-testid="stMarkdownContainer"] code {
+        background-color: rgba(232, 72, 44, 0.12) !important;
+        color: #E8482C !important;
+        font-weight: 600;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 col1, col2 = st.columns([1, 4])
 with col1:
     st.markdown("# 🧪")
