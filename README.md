@@ -28,6 +28,7 @@ app.py                  → Streamlit UI (thin layer, imports from src/)
 api.py                   → FastAPI backend (thin layer, imports from src/)
 src/
   config.py              → paths, model names, chunking/retrieval parameters
+  logger.py                → structured JSON logging configuration
   ingestion.py            → PDF → text → dedup → sentence-based chunking → FAISS index
   retrieval.py             → dense (FAISS/cosine) + BM25 hybrid search
   generation.py             → prompt construction + LLM call
@@ -105,6 +106,34 @@ uvicorn api:app --reload
 ```
 Then open `http://127.0.0.1:8000/docs` for the interactive documentation.
 
+## Phase 2 — Structured Logging
+
+Replaced plain-text logging with structured JSON logs, making the system's
+behavior easy to parse, filter, and eventually feed into monitoring tools (e.g.
+Grafana).
+
+**What was added:**
+
+- **`src/logger.py`** — a shared JSON formatter and `get_logger()` helper used
+  consistently across the ingestion pipeline and the API, instead of ad-hoc
+  `print()` calls or Python's default text logging.
+- **Request logging middleware** (`api.py`) — automatically logs every incoming
+  HTTP request (method, path, status code, duration), regardless of endpoint, with
+  no extra code needed when new endpoints are added later.
+- **Pipeline-level logging** — the `/query` endpoint logs the question, `top_k`,
+  number of retrieved sources, and generation time on success; on failure, it logs
+  the error before returning the `502` response. This makes it possible to see,
+  for example, that a slow request is spending most of its time in the OpenAI call
+  rather than in retrieval — useful both for debugging and for understanding
+  where future optimization effort would pay off.
+- **Unit tests** for the middleware, verifying it captures request details on both
+  successful and failed (422) requests.
+
+Example log line:
+```json
+{"timestamp": "2026-08-19T14:49:05.01Z", "level": "INFO", "logger": "api", "message": "Query processed", "question": "What is the D/G ratio?", "top_k": 5, "num_sources": 5, "duration_ms": 6982.88}
+```
+
 ## Evaluation (RAGAs)
 
 The system was evaluated on a fixed set of 14 domain questions (see
@@ -166,7 +195,7 @@ pytest tests/ -v
 
 - [x] Phase 0 — retrieval correctness, hybrid search, testing, evaluation
 - [x] Phase 1 — FastAPI backend, request/response validation, error handling, API tests
-- [ ] Phase 2 — structured logging
+- [x] Phase 2 — structured JSON logging (request middleware, pipeline logs)
 - [ ] Phase 3 — Docker + docker-compose
 - [ ] Phase 4 — CI/CD (GitHub Actions)
 - [ ] Phase 5 — deployment (Render/Railway)
