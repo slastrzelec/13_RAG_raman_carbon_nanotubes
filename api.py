@@ -1,5 +1,5 @@
 """
-FastAPI backend for the RAG system (Phase 1).
+FastAPI backend for the RAG system (Phase 1 + Phase 2 logging).
 
 Reuses the same src/ modules (Retriever, rag_query) that power the Streamlit app —
 no duplicated logic between the two interfaces.
@@ -7,16 +7,21 @@ no duplicated logic between the two interfaces.
 Run with:
     uvicorn api:app --reload
 """
+import time
+
 from dotenv import load_dotenv
 
 load_dotenv()  # must run before importing src.generation, which creates an OpenAI client lazily but still needs the key available
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from src.retrieval import Retriever
 from src.generation import rag_query
 from src import config
+from src.logger import get_logger
+
+logger = get_logger("api")
 
 app = FastAPI(
     title="RAG Raman Nanotubes API",
@@ -27,6 +32,25 @@ app = FastAPI(
 # Loaded once at startup, reused across requests — avoids reloading the embedding
 # model and FAISS index on every call.
 retriever = Retriever()
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Logs every incoming request: method, path, status code, and duration."""
+    start_time = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+    logger.info(
+        "Request handled",
+        extra={
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": response.status_code,
+            "duration_ms": duration_ms,
+        },
+    )
+    return response
 
 
 class QueryRequest(BaseModel):
@@ -47,13 +71,29 @@ def query(request: QueryRequest):
     if not question:
         raise HTTPException(status_code=422, detail="Question must not be empty or whitespace-only.")
 
+    start_time = time.perf_counter()
     try:
         answer, retrieved_chunks = rag_query(retriever, question, top_k=request.top_k)
     except Exception as e:
+        logger.error(
+            "RAG pipeline failed",
+            extra={"question": question, "top_k": request.top_k, "error": str(e)},
+        )
         # Covers OpenAI API errors (rate limits, timeouts, auth issues) and any
         # unexpected failure in the retrieval/generation pipeline — the caller
         # gets a clear 502 instead of a raw stack trace.
         raise HTTPException(status_code=502, detail=f"Failed to generate an answer: {e}")
+
+    duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+    logger.info(
+        "Query processed",
+        extra={
+            "question": question,
+            "top_k": request.top_k,
+            "num_sources": len(retrieved_chunks),
+            "duration_ms": duration_ms,
+        },
+    )
 
     return {"answer": answer, "sources": retrieved_chunks}
 
