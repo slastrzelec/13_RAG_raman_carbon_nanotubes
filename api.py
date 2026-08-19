@@ -45,3 +45,10 @@ def query(request: QueryRequest):
     """Runs the RAG pipeline: retrieves relevant chunks and generates an answer."""
     answer, retrieved_chunks = rag_query(retriever, request.question, top_k=request.top_k)
     return {"answer": answer, "sources": retrieved_chunks}
+
+
+@app.get("/documents")
+def list_documents():
+    """Lists all unique source PDF filenames currently indexed."""
+    filenames = sorted({chunk["filename"] for chunk in retriever.chunks_meta})
+    return {"count": len(filenames), "documents": filenames}
