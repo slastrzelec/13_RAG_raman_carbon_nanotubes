@@ -11,8 +11,8 @@ from dotenv import load_dotenv
 
 load_dotenv()  # must run before importing src.generation, which creates an OpenAI client lazily but still needs the key available
 
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
 
 from src.retrieval import Retriever
 from src.generation import rag_query
@@ -30,8 +30,8 @@ retriever = Retriever()
 
 
 class QueryRequest(BaseModel):
-    question: str
-    top_k: int = config.DEFAULT_TOP_K
+    question: str = Field(..., min_length=1, description="The question to ask, must not be empty.")
+    top_k: int = Field(default=config.DEFAULT_TOP_K, ge=1, le=20, description="Number of chunks to retrieve (1-20).")
 
 
 @app.get("/health")
@@ -43,7 +43,18 @@ def health_check():
 @app.post("/query")
 def query(request: QueryRequest):
     """Runs the RAG pipeline: retrieves relevant chunks and generates an answer."""
-    answer, retrieved_chunks = rag_query(retriever, request.question, top_k=request.top_k)
+    question = request.question.strip()
+    if not question:
+        raise HTTPException(status_code=422, detail="Question must not be empty or whitespace-only.")
+
+    try:
+        answer, retrieved_chunks = rag_query(retriever, question, top_k=request.top_k)
+    except Exception as e:
+        # Covers OpenAI API errors (rate limits, timeouts, auth issues) and any
+        # unexpected failure in the retrieval/generation pipeline — the caller
+        # gets a clear 502 instead of a raw stack trace.
+        raise HTTPException(status_code=502, detail=f"Failed to generate an answer: {e}")
+
     return {"answer": answer, "sources": retrieved_chunks}
 
 
