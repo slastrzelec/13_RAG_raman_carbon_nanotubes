@@ -1,0 +1,43 @@
+"""
+Moduł generacji: buduje prompt z pobranego kontekstu i wywołuje LLM.
+Wydzielony z app.py, żeby dało się go testować i używać zarówno w Streamlit, jak i w FastAPI (Faza 1).
+"""
+from openai import OpenAI
+
+from src import config
+from src.retrieval import Retriever
+
+client = OpenAI()
+
+
+def build_prompt(query: str, retrieved_chunks: list[dict]) -> str:
+    context = "\n\n".join([c["text"] for c in retrieved_chunks])
+    return (
+        f"You have access to the following scientific publication fragments:\n\n{context}\n\n"
+        f"Please provide a detailed answer to the question: {query}"
+    )
+
+
+def generate_answer(query: str, retrieved_chunks: list[dict]) -> str:
+    prompt = build_prompt(query, retrieved_chunks)
+    response = client.chat.completions.create(
+        model=config.LLM_MODEL,
+        messages=[
+            {"role": "system", "content": config.LLM_SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=config.LLM_MAX_TOKENS,
+    )
+    return response.choices[0].message.content
+
+
+def rag_query(
+    retriever: Retriever,
+    query: str,
+    top_k: int = config.DEFAULT_TOP_K,
+    selected_files: list[str] | None = None,
+) -> tuple[str, list[dict]]:
+    """Pełny przepływ RAG: retrieval + generacja. Główny punkt wejścia dla app.py i api.py."""
+    retrieved_chunks = retriever.retrieve(query, top_k=top_k, selected_files=selected_files)
+    answer = generate_answer(query, retrieved_chunks)
+    return answer, retrieved_chunks

@@ -5,3 +5,7 @@ faiss-cpu
 sentence-transformers
 huggingface-hub
 numpy
+pymupdf
+tqdm
+scikit-learn
+rank_bm25
