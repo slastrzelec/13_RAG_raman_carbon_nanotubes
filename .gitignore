@@ -1,3 +1,13 @@
+# Sekrety
 .env
+
+# Dane źródłowe (surowe PDF-y, duże, nie muszą być w repo)
 data/raw/
-data/processed/*.pdf
+
+# Cache Pythona
+__pycache__/
+*.pyc
+
+# Cache testów
+.pytest_cache/
+.ipynb_checkpoints/
