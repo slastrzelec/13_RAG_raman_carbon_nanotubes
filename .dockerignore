@@ -1,0 +1,30 @@
+# Version control
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# Environment / secrets — never bake these into an image
+.env
+
+# Raw source PDFs — large, not needed at runtime (only the built index is)
+data/raw/
+
+# Evaluation results and notebooks — not needed to run the app
+data/evaluation/
+notebooks/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Docs not needed inside the container
+README.md

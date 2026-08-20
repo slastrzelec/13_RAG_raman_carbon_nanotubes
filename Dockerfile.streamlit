@@ -1,0 +1,24 @@
+# Dockerfile for the Streamlit UI (app.py).
+# Build:  docker build -f Dockerfile.streamlit -t rag-streamlit .
+# Run:    docker run -p 8501:8501 --env-file .env rag-streamlit
+
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Same CPU-only torch trick as Dockerfile.api — avoids pulling a multi-GB
+# CUDA build for a container with no GPU access.
+COPY requirements.txt .
+RUN pip install --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r requirements.txt
+
+COPY src/ src/
+COPY app.py .
+COPY .streamlit/ .streamlit/
+COPY data/processed/ data/processed/
+
+EXPOSE 8501
+
+# --server.address 0.0.0.0 is required for the app to be reachable from
+# outside the container (Streamlit defaults to localhost otherwise).
+CMD ["streamlit", "run", "app.py", "--server.address", "0.0.0.0", "--server.port", "8501"]

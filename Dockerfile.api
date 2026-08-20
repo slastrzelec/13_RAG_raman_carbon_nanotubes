@@ -1,0 +1,30 @@
+# Dockerfile for the FastAPI backend (api.py).
+# Build:  docker build -f Dockerfile.api -t rag-api .
+# Run:    docker run -p 8000:8000 --env-file .env rag-api
+
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install dependencies first (separate layer) so Docker can cache this step
+# and skip reinstalling everything when only application code changes.
+#
+# torch (a sentence-transformers dependency) defaults to a CUDA-enabled build
+# from PyPI, which is 800MB-2GB even though this container has no GPU access.
+# Installing the CPU-only build from PyTorch's own index instead keeps the
+# image small and the build fast.
+COPY requirements.txt .
+RUN pip install --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r requirements.txt
+
+# Application code and the pre-built FAISS index (data/processed/).
+# data/raw/ is excluded via .dockerignore — not needed at runtime.
+COPY src/ src/
+COPY api.py .
+COPY data/processed/ data/processed/
+
+EXPOSE 8000
+
+# No --reload here: that's a development-only feature. In production the
+# container is rebuilt/redeployed when code changes, not hot-reloaded.
+CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
