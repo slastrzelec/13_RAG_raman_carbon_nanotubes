@@ -6,7 +6,8 @@ A Retrieval-Augmented Generation (RAG) system for semantic search and Q&A over s
 publications on Raman spectroscopy of carbon nanotubes. Started as a simple Streamlit demo,
 now being rebuilt into a production-grade RAG API (v2-production branch).
 
-**Live demo:** [carbon-nanotubesrag.streamlit.app](https://carbon-nanotubesrag.streamlit.app/)
+**Live demo (Streamlit UI):** [carbon-nanotubesrag.streamlit.app](https://carbon-nanotubesrag.streamlit.app/)
+**Live API (Swagger docs):** [rag-raman-api.onrender.com/docs](https://rag-raman-api.onrender.com/docs)
 
 ## Overview
 
@@ -229,6 +230,26 @@ discovered later (or not at all).
 - **Status badge** — the badge at the top of this README reflects the current
   test status directly from GitHub Actions.
 
+## Phase 5 — Deployment
+
+Deployed the FastAPI backend publicly on [Render](https://render.com), using
+the same `Dockerfile.api` built in Phase 3 — no separate deployment-specific
+build process was needed.
+
+**Live API:** [rag-raman-api.onrender.com](https://rag-raman-api.onrender.com)
+([interactive docs](https://rag-raman-api.onrender.com/docs))
+
+**Notes:**
+
+- Running on Render's free tier (512 MB RAM, 0.1 CPU). The CPU-only PyTorch
+  install from Phase 3 was essential here — a CUDA build would not fit in the
+  available memory.
+- Free tier instances spin down after 15 minutes of inactivity; the first
+  request after idle time takes 30-60 seconds (cold start) while the
+  container restarts and the embedding model reloads.
+- The `OPENAI_API_KEY` is configured as an environment variable in Render's
+  dashboard, not baked into the image.
+
 ## Running Locally
 
 ```bash
@@ -255,6 +276,5 @@ pytest tests/ -v
 - [x] Phase 2 — structured JSON logging (request middleware, pipeline logs)
 - [x] Phase 3 — Docker (API + Streamlit containers, docker-compose)
 - [x] Phase 4 — CI/CD (GitHub Actions, automated tests on every push)
-- [ ] Phase 5 — deployment (Render/Railway)
-- [ ] Phase 5 — deployment (Render/Railway)
+- [x] Phase 5 — deployment (live API on Render)
 - [ ] Phase 6 — architecture docs, expanded evaluation (context precision with reference answers)
