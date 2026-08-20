@@ -1,0 +1,46 @@
+name: Tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements-dev.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install CPU-only torch
+        # sentence-transformers depends on torch, which defaults to a multi-GB
+        # CUDA build on PyPI. CI runners have no GPU, so the CPU-only build
+        # (from PyTorch's own index) is installed explicitly first to keep
+        # the workflow fast.
+        run: pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        env:
+          # Dummy key — tests mock the OpenAI client / rag_query, so no real
+          # API calls are made, but src/generation.py expects the env var to
+          # be present when the OpenAI client is instantiated.
+          OPENAI_API_KEY: "test-key-not-used"
+        run: pytest tests/ -v
