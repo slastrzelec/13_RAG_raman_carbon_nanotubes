@@ -46,6 +46,14 @@ data/
 Both `app.py` and `api.py` are thin interface layers over the same `src/` modules —
 no duplicated retrieval or generation logic between the Streamlit UI and the REST API.
 
+**Docker:**
+```
+Dockerfile.api          → container image for the FastAPI backend
+Dockerfile.streamlit     → container image for the Streamlit UI
+docker-compose.yml        → runs both containers together
+.dockerignore               → excludes raw PDFs, secrets, dev artifacts from images
+```
+
 ## Phase 0 — Retrieval Quality & Engineering Foundations
 
 The original prototype used `IndexFlatL2` on non-normalized embeddings and naive
@@ -172,6 +180,36 @@ python -m src.evaluation
 Note: this makes real OpenAI API calls (both for answer generation and RAGAs'
 LLM-as-judge scoring) and is not part of the automated test suite.
 
+## Phase 3 — Docker
+
+Containerized both the API and the Streamlit UI, so the system can run
+identically on any machine with Docker installed — no manual Python/conda
+environment setup, no dependency version conflicts.
+
+**What was added:**
+
+- **Two separate Dockerfiles** (`Dockerfile.api`, `Dockerfile.streamlit`) — one
+  container per service, each with its own entrypoint and exposed port.
+- **CPU-only PyTorch install** — `torch` (a `sentence-transformers` dependency)
+  defaults to a CUDA-enabled build from PyPI, which is 800MB–2GB even though
+  these containers have no GPU access. Installing the CPU-only build from
+  PyTorch's own package index instead keeps image size and build time down
+  significantly.
+- **Layered builds** — dependencies are installed in their own Docker layer,
+  before application code is copied in. Code changes don't trigger a full
+  reinstall of torch and the rest of the dependencies on rebuild.
+- **`docker-compose.yml`** — orchestrates both containers together with a
+  single command, sharing the same `.env` file for the OpenAI API key.
+- **`.dockerignore`** — keeps raw source PDFs, secrets, and dev artifacts
+  (`.git`, `__pycache__`, notebooks) out of the built images.
+
+Run both services with:
+```bash
+docker-compose up --build
+```
+Then open `http://127.0.0.1:8000/health` (API) and `http://127.0.0.1:8501`
+(Streamlit UI).
+
 ## Running Locally
 
 ```bash
@@ -196,7 +234,7 @@ pytest tests/ -v
 - [x] Phase 0 — retrieval correctness, hybrid search, testing, evaluation
 - [x] Phase 1 — FastAPI backend, request/response validation, error handling, API tests
 - [x] Phase 2 — structured JSON logging (request middleware, pipeline logs)
-- [ ] Phase 3 — Docker + docker-compose
+- [x] Phase 3 — Docker (API + Streamlit containers, docker-compose)
 - [ ] Phase 4 — CI/CD (GitHub Actions)
 - [ ] Phase 5 — deployment (Render/Railway)
 - [ ] Phase 6 — architecture docs, expanded evaluation (context precision with reference answers)
