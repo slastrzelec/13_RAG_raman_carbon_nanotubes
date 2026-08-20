@@ -140,6 +140,22 @@ st.sidebar.markdown("""
 - Sentence-based chunking with deduplication
 """)
 
+with st.sidebar.expander("⚙️ This demo is one of two interfaces"):
+    st.markdown("""
+This Streamlit app is a UI on top of a full production-style system built around the same RAG pipeline:
+
+- 🔌 **[Live REST API (Swagger docs)](https://rag-raman-api.onrender.com/docs)** — the same retrieval/generation logic, exposed as a proper API (`/query`, `/documents`, `/health`), with request validation and error handling.
+- 💻 **[Full source code on GitHub](https://github.com/slastrzelec/13_RAG_raman_carbon_nanotubes)** — includes:
+  - Unit tests (21 passing) and RAGAs evaluation (faithfulness scoring)
+  - Structured JSON logging
+  - Docker + docker-compose (this UI and the API each run as a separate container)
+  - CI/CD via GitHub Actions (tests run automatically on every push)
+
+The API deploys on a free-tier instance, so the first request after a period of inactivity may take 30–60 seconds (cold start) while it wakes up.
+""")
+
+st.sidebar.divider()
+
 all_files = sorted({chunk["filename"] for chunk in retriever.chunks_meta})
 selected_files = st.sidebar.multiselect("📄 Select PDFs for retrieval:", all_files, default=all_files[:5])
 
