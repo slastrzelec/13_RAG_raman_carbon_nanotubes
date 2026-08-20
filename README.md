@@ -271,10 +271,26 @@ pytest tests/ -v
 
 ## Roadmap
 
+All planned phases are complete:
+
 - [x] Phase 0 — retrieval correctness, hybrid search, testing, evaluation
 - [x] Phase 1 — FastAPI backend, request/response validation, error handling, API tests
 - [x] Phase 2 — structured JSON logging (request middleware, pipeline logs)
 - [x] Phase 3 — Docker (API + Streamlit containers, docker-compose)
 - [x] Phase 4 — CI/CD (GitHub Actions, automated tests on every push)
 - [x] Phase 5 — deployment (live API on Render)
-- [ ] Phase 6 — architecture docs, expanded evaluation (context precision with reference answers)
+
+## Possible Future Work
+
+Ideas for further extending the project, not currently planned:
+
+- **Architecture documentation** — a data-flow diagram and a short write-up of
+  key design decisions (why hybrid search over pure dense retrieval, why
+  `IndexFlatIP` over alternatives like HNSW or a managed vector DB, why
+  FastAPI runs alongside Streamlit rather than replacing it).
+- **Expanded evaluation** — adding RAGAs' `context_precision` metric, which
+  requires reference (ground-truth) answers for each evaluation question.
+  This was intentionally left out of the Phase 0 evaluation (see above) in
+  favor of shipping `faithfulness` results quickly; a full reference answer
+  set would give a more complete picture of retrieval quality specifically,
+  separate from generation quality.
