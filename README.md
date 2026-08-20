@@ -1,5 +1,7 @@
 # RAG – Raman Nanotubes QA
 
+[![Tests](https://github.com/slastrzelec/13_RAG_raman_carbon_nanotubes/actions/workflows/tests.yml/badge.svg)](https://github.com/slastrzelec/13_RAG_raman_carbon_nanotubes/actions/workflows/tests.yml)
+
 A Retrieval-Augmented Generation (RAG) system for semantic search and Q&A over scientific
 publications on Raman spectroscopy of carbon nanotubes. Started as a simple Streamlit demo,
 now being rebuilt into a production-grade RAG API (v2-production branch).
@@ -210,6 +212,23 @@ docker-compose up --build
 Then open `http://127.0.0.1:8000/health` (API) and `http://127.0.0.1:8501`
 (Streamlit UI).
 
+## Phase 4 — CI/CD (GitHub Actions)
+
+Added a GitHub Actions workflow that runs the full test suite automatically on
+every push and pull request, so broken code is caught immediately rather than
+discovered later (or not at all).
+
+**What was added:**
+
+- **`.github/workflows/tests.yml`** — installs dependencies (CPU-only torch,
+  same approach as the Docker images) and runs `pytest tests/ -v` on every
+  push to any branch and every PR to `main`.
+- **Dependency caching** — pip packages are cached between runs, keeping
+  workflow duration reasonable despite the heavy `torch`/`sentence-transformers`
+  dependencies.
+- **Status badge** — the badge at the top of this README reflects the current
+  test status directly from GitHub Actions.
+
 ## Running Locally
 
 ```bash
@@ -235,6 +254,7 @@ pytest tests/ -v
 - [x] Phase 1 — FastAPI backend, request/response validation, error handling, API tests
 - [x] Phase 2 — structured JSON logging (request middleware, pipeline logs)
 - [x] Phase 3 — Docker (API + Streamlit containers, docker-compose)
-- [ ] Phase 4 — CI/CD (GitHub Actions)
+- [x] Phase 4 — CI/CD (GitHub Actions, automated tests on every push)
+- [ ] Phase 5 — deployment (Render/Railway)
 - [ ] Phase 5 — deployment (Render/Railway)
 - [ ] Phase 6 — architecture docs, expanded evaluation (context precision with reference answers)
